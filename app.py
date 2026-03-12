@@ -101,6 +101,10 @@ def register():
             
         hashed_password = generate_password_hash(password)
         conn = get_db_connection()
+        if not conn:
+            flash('Database configuration error: could not connect to server.', 'error')
+            return redirect(url_for('register'))
+
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
@@ -113,7 +117,8 @@ def register():
         except pymysql.MySQLError as e:
             flash('Username or Email already exists.', 'error')
         finally:
-            conn.close()
+            if conn:
+                conn.close()
             
     return render_template('register.html')
 
@@ -124,6 +129,10 @@ def login():
         password = request.form['password']
         
         conn = get_db_connection()
+        if not conn:
+            flash('Database configuration error: could not connect to server.', 'error')
+            return redirect(url_for('login'))
+
         with conn.cursor() as cursor:
             cursor.execute(
                 "SELECT * FROM users WHERE username = %s OR email = %s",
