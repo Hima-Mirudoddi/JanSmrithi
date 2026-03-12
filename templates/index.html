@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block main %}
+<div class="search-container mb-4">
+    <form method="GET" action="{{ url_for('home') }}" class="flex-between">
+        <input type="text" name="q" placeholder="Search by state or district..." class="form-control" value="{{ search_query }}">
+        <button type="submit" class="btn btn-small" style="margin-left: 10px;">Search</button>
+    </form>
+</div>
+
+<div class="content-feed">
+    {% if content_items %}
+        {% for item in content_items %}
+        <div class="card mb-4">
+            <div class="media-preview mb-2">
+                {% if item.media_type|lower == 'video' %}
+                    <video controls width="100%" class="rounded-media">
+                        <source src="{{ url_for('static', filename=item.file_path) }}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                {% elif item.media_type|lower == 'audio' %}
+                    <audio controls class="full-width">
+                        <source src="{{ url_for('static', filename=item.file_path) }}" type="audio/mpeg">
+                        Your browser does not support the audio element.
+                    </audio>
+                {% elif item.media_type|lower == 'image' %}
+                    <img src="{{ url_for('static', filename=item.file_path) }}" alt="{{ item.title }}" width="100%" class="rounded-media">
+                {% elif item.media_type|lower == 'pdf' %}
+                    <div class="pdf-icon text-center" style="padding: 40px; background: #fafafa; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 48px; height: 48px; color: #ff6b6b;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="mt-2"><a href="{{ url_for('static', filename=item.file_path) }}" target="_blank" style="color: #333; font-weight: 500;">View PDF: {{ item.title }}</a></p>
+                    </div>
+                {% elif item.media_type|lower == 'text' %}
+                    <div class="text-preview p-4" style="background: #ffffff; border-radius: var(--radius-sm); border: 1px solid #ebebeb;">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="width: 32px; height: 32px; color: #a0a0a0; margin-bottom: 10px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <p><a href="{{ url_for('static', filename=item.file_path) }}" target="_blank" style="color: #333; font-weight: 500;">Read Text: {{ item.title }}</a></p>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="content-details mt-4">
+                <h3 style="font-weight: 600; margin-bottom: 4px;">{{ item.title }}</h3>
+                <p class="text-secondary mb-3" style="font-size: 0.85rem;">
+                    Uploaded by <a href="{{ url_for('profile', user_id=item.user_id) }}" style="color: var(--text-primary); font-weight: 600;">@{{ item.username }}</a>
+                </p>
+                <div class="tags" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <span class="tag">{{ item.category }}</span>
+                    <span class="tag">{{ item.media_type }}</span>
+                    <span class="tag">{{ item.state }}</span>
+                    <span class="tag">{{ item.district }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="card text-center shadow-none border-dashed" style="padding: 60px 20px; border: 1px dashed var(--border-color); background: none; box-shadow: none;">
+            <p class="text-secondary" style="font-size: 0.95rem;">No content available. Be the first to start sharing!</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block upload_btn %}
+<div class="upload-fab-container" style="position: fixed; bottom: 80px; right: 20px; z-index: 1000;">
+    <a href="{{ url_for('categories') }}" class="upload-fab" style="display: flex; align-items: center; justify-content: center; width: 60px; height: 60px; background-color: var(--accent-color); color: var(--text-primary); border-radius: 50%; box-shadow: var(--shadow-md); font-size: 32px; text-decoration: none; transition: background-color 0.3s, transform 0.2s;">
+        +
+    </a>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .rounded-media {
+        border-radius: var(--radius-sm);
+        max-height: 400px;
+        object-fit: contain;
+        background: #000;
+    }
+    .full-width {
+        width: 100%;
+    }
+    .tag {
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        padding: 4px 10px;
+        border-radius: var(--radius-lg);
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+    .upload-fab:hover {
+        background-color: var(--accent-hover);
+        transform: scale(1.05);
+    }
+</style>
+{% endblock %}

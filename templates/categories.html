@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block main %}
+<div class="card text-center mb-4 text-primary p-4">
+    <h2>Categories</h2>
+    <p class="text-secondary mt-2">Select a category to upload your cultural preservation</p>
+</div>
+
+<div class="categories-grid">
+    {% for cat in categories %}
+    <a href="{{ url_for('media_type', category_name=cat) }}" class="category-card">
+        {{ cat }}
+    </a>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .categories-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 15px;
+    }
+    
+    .category-card {
+        background: var(--bg-color);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 15px 10px;
+        text-align: center;
+        font-weight: 500;
+        color: var(--text-primary);
+        transition: transform 0.2s, background-color 0.2s;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 80px;
+        font-size: 0.95rem;
+    }
+    
+    .category-card:hover {
+        transform: translateY(-2px);
+        background-color: var(--card-bg);
+        border-color: #ccc;
+        box-shadow: var(--shadow-sm);
+    }
+</style>
+{% endblock %}
