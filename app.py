@@ -95,10 +95,17 @@ def register():
         password = request.form['password']
         confirm_password = request.form['confirm_password']
         
+        if not username or not email or not password:
+            flash('All fields are required.', 'error')
+            return redirect(url_for('register'))
+            
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return redirect(url_for('register'))
+            
         if password != confirm_password:
             flash('Passwords do not match.', 'error')
             return redirect(url_for('register'))
-            
         hashed_password = generate_password_hash(password)
         conn, err = get_db_connection()
         if not conn:
