@@ -40,10 +40,10 @@ def get_db_connection():
             ssl=ssl_config,
             connect_timeout=10,
             cursorclass=pymysql.cursors.DictCursor
-        )
+        ), ""
     except Exception as e:
         print(f"Database connection error: {e}")
-        return None
+        return None, str(e)
 
 def login_required(func):
     def wrapper(*args, **kwargs):
@@ -59,9 +59,9 @@ def home():
         return redirect(url_for('register'))
         
     search_query = request.args.get('q', '').strip()
-    conn = get_db_connection()
+    conn, err = get_db_connection()
     if not conn:
-        return "Database not connected. Please setup MySQL.", 500
+        return f"Database not connected. Error: {err}", 500
         
     with conn.cursor() as cursor:
         if search_query:
@@ -100,9 +100,9 @@ def register():
             return redirect(url_for('register'))
             
         hashed_password = generate_password_hash(password)
-        conn = get_db_connection()
+        conn, err = get_db_connection()
         if not conn:
-            flash('Database configuration error: could not connect to server.', 'error')
+            flash(f'Database error: {err}', 'error')
             return redirect(url_for('register'))
 
         try:
@@ -128,9 +128,9 @@ def login():
         user_identifier = request.form['username_email']
         password = request.form['password']
         
-        conn = get_db_connection()
+        conn, err = get_db_connection()
         if not conn:
-            flash('Database configuration error: could not connect to server.', 'error')
+            flash(f'Database error: {err}', 'error')
             return redirect(url_for('login'))
 
         with conn.cursor() as cursor:
@@ -210,7 +210,11 @@ def upload(category, mtype):
             flash('Please provide the valid file or text.', 'error')
             return render_template('upload.html', category=category, mtype=mtype)
             
-        conn = get_db_connection()
+        conn, err = get_db_connection()
+        if not conn:
+            flash(f'Database error: {err}', 'error')
+            return redirect(url_for('home'))
+
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO content (user_id, title, description, category, media_type, file_path, state, district, language)
@@ -233,7 +237,10 @@ def profile(user_id=None):
     if user_id is None:
         user_id = session['user_id']
         
-    conn = get_db_connection()
+    conn, err = get_db_connection()
+    if not conn:
+        return f"Database error: {err}", 500
+
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
@@ -267,7 +274,10 @@ def follow(user_id):
     if session['user_id'] == user_id:
         return redirect(url_for('profile', user_id=user_id))
         
-    conn = get_db_connection()
+    conn, err = get_db_connection()
+    if not conn:
+        return f"Database error: {err}", 500
+
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM follow WHERE follower_user_id = %s AND following_user_id = %s",
                        (session['user_id'], user_id))
@@ -293,7 +303,10 @@ def follow(user_id):
 @app.route('/delete/<int:content_id>', methods=['POST'])
 @login_required
 def delete(content_id):
-    conn = get_db_connection()
+    conn, err = get_db_connection()
+    if not conn:
+        return f"Database error: {err}", 500
+
     with conn.cursor() as cursor:
         cursor.execute("SELECT * FROM content WHERE content_id = %s", (content_id,))
         content = cursor.fetchone()
