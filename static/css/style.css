@@ -110,10 +110,30 @@ footer {
 
 /* Main Container */
 .container {
-    max-width: 600px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
 }
+
+/* Responsive Grid for Feeds */
+.grid-feed {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+}
+
+@media (min-width: 768px) {
+    .grid-feed {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .grid-feed {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
 
 /* Cards */
 .card {

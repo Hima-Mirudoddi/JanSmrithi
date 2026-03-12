@@ -37,7 +37,7 @@
 
 <h3 class="mb-4">{% if session.get('user_id') == user.user_id %}Your Uploads{% else %}Uploads{% endif %}</h3>
 
-<div class="content-feed">
+<div class="content-feed grid-feed">
     {% if contents %}
         {% for item in contents %}
         <div class="card mb-4" style="position: relative;">
