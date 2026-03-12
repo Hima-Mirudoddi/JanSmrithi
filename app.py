@@ -25,11 +25,9 @@ def get_db_connection():
         host = os.getenv('DB_HOST', '127.0.0.1')
         
         # Cloud databases (like Aiven) strictly require SSL connections
-        ssl_ctx = None
+        ssl_config = None
         if host not in ['localhost', '127.0.0.1']:
-            ssl_ctx = ssl.create_default_context()
-            ssl_ctx.check_hostname = False
-            ssl_ctx.verify_mode = ssl.CERT_NONE
+            ssl_config = {'ssl': {}}
 
         return pymysql.connect(
             host=host,
@@ -37,7 +35,8 @@ def get_db_connection():
             password=os.getenv('DB_PASSWORD', ''),
             database=os.getenv('DB_NAME', 'jansmrithi'),
             port=int(os.getenv('DB_PORT', 3306)),
-            ssl=ssl_ctx,
+            ssl=ssl_config,
+            connect_timeout=10,
             cursorclass=pymysql.cursors.DictCursor
         )
     except Exception as e:
