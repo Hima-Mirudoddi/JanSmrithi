@@ -18,13 +18,26 @@ for media_type in ['videos', 'audio', 'images', 'text', 'pdfs']:
     os.makedirs(os.path.join(UPLOAD_FOLDER, media_type), exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+import ssl
+
 def get_db_connection():
     try:
+        host = os.getenv('DB_HOST', '127.0.0.1')
+        
+        # Cloud databases (like Aiven) strictly require SSL connections
+        ssl_ctx = None
+        if host not in ['localhost', '127.0.0.1']:
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
         return pymysql.connect(
-            host=os.getenv('DB_HOST', '127.0.0.1'),
+            host=host,
             user=os.getenv('DB_USER', 'root'),
             password=os.getenv('DB_PASSWORD', ''),
             database=os.getenv('DB_NAME', 'jansmrithi'),
+            port=int(os.getenv('DB_PORT', 3306)),
+            ssl=ssl_ctx,
             cursorclass=pymysql.cursors.DictCursor
         )
     except Exception as e:
