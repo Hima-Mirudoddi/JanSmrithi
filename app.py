@@ -160,11 +160,22 @@ def logout():
 @login_required
 def categories():
     cats = [
-        "Folktales", "Folk Music", "Folk Dances", "Village Life", "Folk Science",
-        "Dialects and Language", "Folk Art", "Hand Skills", "Sacred Places",
-        "Food and Recipes", "Traditional Games and Sports", "Rituals and Ceremonies",
-        "Community Beliefs and Superstitions", "Agricultural Traditions",
-        "Lost Practices", "Professions"
+        {"name": "Folktales", "icon": "📖"},
+        {"name": "Folk Music", "icon": "🎵"},
+        {"name": "Folk Dances", "icon": "💃"},
+        {"name": "Village Life", "icon": "🛖"},
+        {"name": "Folk Science", "icon": "🔬"},
+        {"name": "Dialects and Language", "icon": "🗣️"},
+        {"name": "Folk Art", "icon": "🎨"},
+        {"name": "Hand Skills", "icon": "🛠️"},
+        {"name": "Sacred Places", "icon": "🛕"},
+        {"name": "Food and Recipes", "icon": "🍲"},
+        {"name": "Traditional Games and Sports", "icon": "🎯"},
+        {"name": "Rituals and Ceremonies", "icon": "🕯️"},
+        {"name": "Community Beliefs", "icon": "🧿"},
+        {"name": "Agriculture", "icon": "🌾"},
+        {"name": "Lost Practices", "icon": "🏺"},
+        {"name": "Professions", "icon": "⚒️"}
     ]
     return render_template('categories.html', categories=cats)
 
