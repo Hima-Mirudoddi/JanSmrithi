@@ -188,23 +188,27 @@ def upload(category, mtype):
         
         file_path = ''
         
-        if mtype.lower() == 'text' and not file and upload_content:
-            # creating a text file
-            filename = secure_filename(title[:10]) + ".txt"
-            path = os.path.join(app.config['UPLOAD_FOLDER'], 'text', filename)
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(upload_content)
-            file_path = f"uploads/text/{filename}"
-        elif file and file.filename != '':
-            filename = secure_filename(file.filename)
-            folder_map = {
-                'video': 'videos', 'audio': 'audio', 'image': 'images',
-                'text': 'text', 'pdf': 'pdfs'
-            }
-            sub_folder = folder_map.get(mtype.lower(), 'text')
-            path = os.path.join(app.config['UPLOAD_FOLDER'], sub_folder, filename)
-            file.save(path)
-            file_path = f"uploads/{sub_folder}/{filename}"
+        try:
+            if mtype.lower() == 'text' and not file and upload_content:
+                # creating a text file
+                filename = secure_filename(title[:10]) + ".txt"
+                path = os.path.join(app.config['UPLOAD_FOLDER'], 'text', filename)
+                with open(path, 'w', encoding='utf-8') as f:
+                    f.write(upload_content)
+                file_path = f"uploads/text/{filename}"
+            elif file and file.filename != '':
+                filename = secure_filename(file.filename)
+                folder_map = {
+                    'video': 'videos', 'audio': 'audio', 'image': 'images',
+                    'text': 'text', 'pdf': 'pdfs'
+                }
+                sub_folder = folder_map.get(mtype.lower(), 'text')
+                path = os.path.join(app.config['UPLOAD_FOLDER'], sub_folder, filename)
+                file.save(path)
+                file_path = f"uploads/{sub_folder}/{filename}"
+        except OSError:
+            flash('Error: You cannot upload files to Vercel (it has a Read-Only file system). Please switch to PythonAnywhere or Render to unlock uploads!', 'error')
+            return render_template('upload.html', category=category, mtype=mtype)
         
         if not file_path:
             flash('Please provide the valid file or text.', 'error')
