@@ -13,11 +13,13 @@ app.secret_key = os.getenv('SECRET_KEY', 'supersecretkey')
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB limit
 
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'static/uploads')
-# Create upload directories
+# Create upload directories safely (Vercel is a Read-Only file system)
 for media_type in ['videos', 'audio', 'images', 'text', 'pdfs']:
-    os.makedirs(os.path.join(UPLOAD_FOLDER, media_type), exist_ok=True)
+    try:
+        os.makedirs(os.path.join(UPLOAD_FOLDER, media_type), exist_ok=True)
+    except OSError:
+        pass  # Ignore Read-Only filesystem errors on Vercel deployments
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
 import ssl
 
 def get_db_connection():
