@@ -21,6 +21,15 @@ for media_type in ['videos', 'audio', 'images', 'text', 'pdfs']:
         pass  # Ignore Read-Only filesystem errors on Vercel deployments
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 import ssl
+import cloudinary
+import cloudinary.uploader
+
+cloudinary.config(
+    cloud_name=os.getenv('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.getenv('CLOUDINARY_API_KEY'),
+    api_secret=os.getenv('CLOUDINARY_API_SECRET'),
+    secure=True
+)
 
 def get_db_connection():
     try:
@@ -75,11 +84,11 @@ def home():
         params = []
         
         if category_query:
-            query += " AND c.category = ?"
+            query += " AND c.category = %s"
             params.append(category_query)
             
         if region_query:
-            query += " AND (c.state LIKE ? OR c.district LIKE ?)"
+            query += " AND (c.state LIKE %s OR c.district LIKE %s)"
             region_term = f"%{region_query}%"
             params.extend([region_term, region_term])
             
@@ -110,6 +119,28 @@ def register():
             flash('High-end Validation Error: Invalid email format.', 'error')
             return redirect(url_for('register'))
             
+        # --- ABSTRACT API DEEP VERIFICATION ---
+        abstract_key = os.getenv('ABSTRACT_API_KEY')
+        if abstract_key:
+            import requests
+            try:
+                response = requests.get(f"https://emailvalidation.abstractapi.com/v1/?api_key={abstract_key}&email={email}")
+                if response.status_code == 200:
+                    api_data = response.json()
+                    deliverability = api_data.get("deliverability")
+                    
+                    # Reject if it's undeliverable/fake or a temporary disposable email
+                    if deliverability == "UNDELIVERABLE":
+                        flash('Security Error: This email address does not physically exist in the real world.', 'error')
+                        return redirect(url_for('register'))
+                    
+                    if api_data.get("is_disposable_email", {}).get("value", False):
+                        flash('Security Error: Temporary disposable emails are not allowed.', 'error')
+                        return redirect(url_for('register'))
+            except Exception as e:
+                print(f"Abstract API Warning: {e}") # Let the user through if the API goes down
+        # --------------------------------------
+            
         if len(password) < 8 or not re.search(r"\d", password) or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
             flash('High-end Validation Error: Password must be at least 8 characters long, contain a number, and a special character.', 'error')
             return redirect(url_for('register'))
@@ -126,7 +157,7 @@ def register():
         try:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO users (username, email, mobile_number, password) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO users (username, email, mobile_number, password) VALUES (%s, %s, %s, %s)",
                     (username, email, mobile_number, hashed_password)
                 )
             conn.commit()
@@ -153,7 +184,7 @@ def login():
 
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT * FROM users WHERE username = ? OR email = ?",
+                "SELECT * FROM users WHERE username = %s OR email = %s",
                 (user_identifier, user_identifier)
             )
             user = cursor.fetchone()
@@ -194,12 +225,12 @@ def forgot_password():
 
         try:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT * FROM users WHERE email = ? AND mobile_number = ?", (email, mobile_number))
+                cursor.execute("SELECT * FROM users WHERE email = %s AND mobile_number = %s", (email, mobile_number))
                 user = cursor.fetchone()
                 
                 if user:
                     hashed_password = generate_password_hash(new_password)
-                    cursor.execute("UPDATE users SET password = ? WHERE user_id = ?", (hashed_password, user['user_id']))
+                    cursor.execute("UPDATE users SET password = %s WHERE user_id = %s", (hashed_password, user['user_id']))
                     conn.commit()
                     flash('Your password has been successfully reset. Please log in.', 'success')
                     return redirect(url_for('login'))
@@ -278,7 +309,7 @@ def explore(category_name):
             SELECT c.*, u.username
             FROM content c
             JOIN users u ON c.user_id = u.user_id
-            WHERE c.category = ?
+            WHERE c.category = %s
             ORDER BY c.upload_date DESC
         """, (category_name,))
         contents = cursor.fetchall()
@@ -319,19 +350,18 @@ def upload(category, mtype):
                 path = os.path.join(app.config['UPLOAD_FOLDER'], 'text', filename)
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(upload_content)
-                file_path = f"uploads/text/{filename}"
+                upload_result = cloudinary.uploader.upload(path, resource_type="raw", folder="jansmrithi/text")
+                file_path = upload_result.get("secure_url")
             elif file and file.filename != '':
-                filename = secure_filename(file.filename)
                 folder_map = {
                     'video': 'videos', 'audio': 'audio', 'image': 'images',
                     'text': 'text', 'pdf': 'pdfs'
                 }
                 sub_folder = folder_map.get(mtype.lower(), 'text')
-                path = os.path.join(app.config['UPLOAD_FOLDER'], sub_folder, filename)
-                file.save(path)
-                file_path = f"uploads/{sub_folder}/{filename}"
-        except OSError:
-            flash('Error: You cannot upload files to Vercel (it has a Read-Only file system). Please switch to PythonAnywhere or Render to unlock uploads!', 'error')
+                upload_result = cloudinary.uploader.upload(file, resource_type="auto", folder=f"jansmrithi/{sub_folder}")
+                file_path = upload_result.get("secure_url")
+        except Exception as e:
+            flash(f'Error pushing to Cloudinary: {str(e)}', 'error')
             return render_template('upload.html', category=category, mtype=mtype)
         
         if not file_path:
@@ -346,10 +376,10 @@ def upload(category, mtype):
         with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO content (user_id, title, description, category, media_type, file_path, state, district, language)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (session['user_id'], title, description, category, mtype, file_path, state, district, language))
             # Increase user uploads count
-            cursor.execute("UPDATE users SET uploads_count = uploads_count + 1 WHERE user_id = ?", (session['user_id'],))
+            cursor.execute("UPDATE users SET uploads_count = uploads_count + 1 WHERE user_id = %s", (session['user_id'],))
         conn.commit()
         conn.close()
         
@@ -370,7 +400,7 @@ def profile(user_id=None):
         return f"Database error: {err}", 500
 
     with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
         user = cursor.fetchone()
         
         if not user:
@@ -381,12 +411,12 @@ def profile(user_id=None):
             SELECT c.*, u.username 
             FROM content c 
             JOIN users u ON c.user_id = u.user_id 
-            WHERE c.user_id = ? 
+            WHERE c.user_id = %s 
         """
         params = [user_id]
         
         if media_filter:
-            query_sql += " AND lower(c.media_type) = ? "
+            query_sql += " AND lower(c.media_type) = %s "
             params.append(media_filter.lower())
             
         query_sql += " ORDER BY c.upload_date DESC"
@@ -406,7 +436,7 @@ def profile(user_id=None):
         # Check if current user follows this profile user
         is_following = False
         if session['user_id'] != user_id:
-            cursor.execute("SELECT * FROM follow WHERE follower_user_id = ? AND following_user_id = ?", 
+            cursor.execute("SELECT * FROM follow WHERE follower_user_id = %s AND following_user_id = %s", 
                            (session['user_id'], user_id))
             is_following = bool(cursor.fetchone())
             
@@ -425,22 +455,22 @@ def follow(user_id):
         return f"Database error: {err}", 500
 
     with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM follow WHERE follower_user_id = ? AND following_user_id = ?",
+        cursor.execute("SELECT * FROM follow WHERE follower_user_id = %s AND following_user_id = %s",
                        (session['user_id'], user_id))
         already_following = cursor.fetchone()
         
         if already_following:
             # Unfollow
-            cursor.execute("DELETE FROM follow WHERE follower_user_id = ? AND following_user_id = ?",
+            cursor.execute("DELETE FROM follow WHERE follower_user_id = %s AND following_user_id = %s",
                            (session['user_id'], user_id))
-            cursor.execute("UPDATE users SET following_count = following_count - 1 WHERE user_id = ?", (session['user_id'],))
-            cursor.execute("UPDATE users SET followers_count = followers_count - 1 WHERE user_id = ?", (user_id,))
+            cursor.execute("UPDATE users SET following_count = following_count - 1 WHERE user_id = %s", (session['user_id'],))
+            cursor.execute("UPDATE users SET followers_count = followers_count - 1 WHERE user_id = %s", (user_id,))
         else:
             # Follow
-            cursor.execute("INSERT INTO follow (follower_user_id, following_user_id) VALUES (?, ?)",
+            cursor.execute("INSERT INTO follow (follower_user_id, following_user_id) VALUES (%s, %s)",
                            (session['user_id'], user_id))
-            cursor.execute("UPDATE users SET following_count = following_count + 1 WHERE user_id = ?", (session['user_id'],))
-            cursor.execute("UPDATE users SET followers_count = followers_count + 1 WHERE user_id = ?", (user_id,))
+            cursor.execute("UPDATE users SET following_count = following_count + 1 WHERE user_id = %s", (session['user_id'],))
+            cursor.execute("UPDATE users SET followers_count = followers_count + 1 WHERE user_id = %s", (user_id,))
             
     conn.commit()
     conn.close()
@@ -454,17 +484,18 @@ def delete(content_id):
         return f"Database error: {err}", 500
 
     with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM content WHERE content_id = ?", (content_id,))
+        cursor.execute("SELECT * FROM content WHERE content_id = %s", (content_id,))
         content = cursor.fetchone()
         
         if content and content['user_id'] == session['user_id']:
             # Safe delete
             try:
-                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], content['file_path'].replace('uploads/', '')))
+                if 'cloudinary.com' not in content['file_path']:
+                    os.remove(os.path.join(app.config['UPLOAD_FOLDER'], content['file_path'].replace('uploads/', '')))
             except OSError:
                 pass
-            cursor.execute("DELETE FROM content WHERE content_id = ?", (content_id,))
-            cursor.execute("UPDATE users SET uploads_count = uploads_count - 1 WHERE user_id = ?", (session['user_id'],))
+            cursor.execute("DELETE FROM content WHERE content_id = %s", (content_id,))
+            cursor.execute("UPDATE users SET uploads_count = uploads_count - 1 WHERE user_id = %s", (session['user_id'],))
             conn.commit()
             flash("Content deleted.", "success")
         else:

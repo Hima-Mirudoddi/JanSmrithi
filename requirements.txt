@@ -4,3 +4,4 @@ python-dotenv
 Werkzeug
 cryptography
 gunicorn
+cloudinary

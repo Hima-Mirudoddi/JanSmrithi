@@ -1,10 +1,25 @@
+# Environments
 .env
-__pycache__/
-*.pyc
-*.pyo
+.flaskenv
 venv/
 env/
-.venv/
-static/uploads/
+ENV/
+*.venv
+
+# Database
+*.db
+*.sqlite3
+jansmrithi.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDEs
 .vscode/
-cloudflared.exe
+.idea/
+
+# Uploads (Cloudinary handles this now!)
+static/uploads/
