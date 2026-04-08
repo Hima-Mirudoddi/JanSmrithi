@@ -2,11 +2,12 @@
 
 {% block main %}
 <div class="profile-header card text-center mb-4">
-    <div class="avatar mx-auto mb-3" style="width: 80px; height: 80px; background-color: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: var(--text-primary); margin: 0 auto;">
+    <div class="avatar mx-auto mb-3"
+        style="width: 80px; height: 80px; background-color: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px; color: var(--text-primary); margin: 0 auto;">
         {{ user.username[0]|upper }}
     </div>
     <h2>@{{ user.username }}</h2>
-    
+
     <div class="profile-stats mt-4 mb-4" style="display: flex; justify-content: center; gap: 30px;">
         <div class="stat">
             <h3 style="margin-bottom: 2px;">{{ user.followers_count }}</h3>
@@ -21,76 +22,159 @@
             <span class="text-secondary" style="font-size: 0.9rem;">Uploads</span>
         </div>
     </div>
-    
+
     <div class="profile-actions" style="display: flex; justify-content: center; gap: 15px;">
         {% if session.get('user_id') == user.user_id %}
-            <a href="{{ url_for('logout') }}" class="btn btn-small" style="background-color: #ffeaa7;">Logout</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-small"
+            style="background-color: #ef4444; color: white; font-weight: 600; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.4);">Logout</a>
         {% else %}
-            <form action="{{ url_for('follow', user_id=user.user_id) }}" method="POST" style="margin: 0;">
-                <button type="submit" class="btn btn-small">
-                    {% if is_following %} Unfollow {% else %} Follow {% endif %}
-                </button>
-            </form>
+        <form action="{{ url_for('follow', user_id=user.user_id) }}" method="POST" style="margin: 0;">
+            <button type="submit" class="btn btn-small">
+                {% if is_following %} Unfollow {% else %} Follow {% endif %}
+            </button>
+        </form>
         {% endif %}
     </div>
 </div>
 
-<h3 class="mb-4">{% if session.get('user_id') == user.user_id %}Your Uploads{% else %}Uploads{% endif %}</h3>
+<h3 class="mb-4 text-left" style="font-weight: 700; color: var(--text-primary);">{% if session.get('user_id') == user.user_id %}Your Uploads{% else %}Uploads{% endif %}</h3>
 
-<div class="content-feed grid-feed">
-    {% if contents %}
-        {% for item in contents %}
-        <div class="card mb-4" style="position: relative;">
-            
-            {% if session.get('user_id') == user.user_id %}
-            <div style="position: absolute; top: 15px; right: 15px; z-index: 10;">
-                <form action="{{ url_for('delete', content_id=item.content_id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this content?');">
-                    <button type="submit" class="btn btn-small btn-danger" style="padding: 4px 10px; font-size: 0.8rem;">
-                        Delete
-                    </button>
-                </form>
-            </div>
-            {% endif %}
-            
-            <div class="media-preview mb-2 mt-4">
-                {% if item.media_type|lower == 'video' %}
-                    <video controls width="100%" class="rounded-media">
-                        <source src="{{ url_for('static', filename=item.file_path) }}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
-                {% elif item.media_type|lower == 'audio' %}
-                    <audio controls class="full-width">
-                        <source src="{{ url_for('static', filename=item.file_path) }}" type="audio/mpeg">
-                        Your browser does not support the audio element.
-                    </audio>
-                {% elif item.media_type|lower == 'image' %}
-                    <img src="{{ url_for('static', filename=item.file_path) }}" alt="{{ item.title }}" width="100%" class="rounded-media">
-                {% elif item.media_type|lower == 'pdf' %}
-                    <div class="pdf-icon text-center" style="padding: 30px; background: #eee; border-radius: var(--radius-sm);">
-                         <p class="mt-2"><a href="{{ url_for('static', filename=item.file_path) }}" target="_blank" class="text-primary">View PDF: {{ item.title }}</a></p>
-                    </div>
-                {% elif item.media_type|lower == 'text' %}
-                    <div class="text-preview p-3" style="background: #f9f9f9; border-radius: var(--radius-sm); border: 1px solid #ddd;">
-                        <p><a href="{{ url_for('static', filename=item.file_path) }}" target="_blank" class="text-primary">Read Text: {{ item.title }}</a></p>
-                    </div>
+<!-- Media Filter Tabs -->
+<div class="profile-media-filters" style="display: flex; gap: 10px; justify-content: flex-start; flex-wrap: wrap; margin-bottom: 25px;">
+    {% set current_media = request.args.get('media', '').lower() %}
+    <a href="{{ url_for('profile', user_id=user.user_id) }}" class="btn btn-small media-tab {% if not current_media %}active{% endif %}">
+        All
+    </a>
+    {% for m in ['Video', 'Audio', 'Image', 'Text', 'PDF'] %}
+    <a href="{{ url_for('profile', user_id=user.user_id, media=m|lower) }}" class="btn btn-small media-tab {% if current_media == m|lower %}active{% endif %}">
+        {{ m }}
+    </a>
+    {% endfor %}
+</div>
+
+{% macro render_item(item) %}
+    <article class="card mb-4"
+        style="padding: 0; overflow: hidden; display: flex; flex-direction: column; position: relative;">
+
+        <!-- Card Header: Title, Author & Actions -->
+        <div class="content-header" style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div style="flex: 1; padding-right: 15px;">
+                    <h3 style="font-weight: 700; font-size: 1.25rem; margin-bottom: 4px; line-height: 1.3;">{{
+                        item.title }}</h3>
+                    <p class="text-secondary" style="font-size: 0.85rem; margin: 0;">
+                        Uploaded by <a href="{{ url_for('profile', user_id=item.user_id) }}"
+                            style="color: var(--text-primary); font-weight: 600; text-decoration: none;">@{{
+                            item.username }}</a>
+                    </p>
+                </div>
+                {% if session.get('user_id') == user.user_id %}
+                <div>
+                    <form action="{{ url_for('delete', content_id=item.content_id) }}" method="POST"
+                        onsubmit="return confirm('Are you sure you want to delete this content?');" style="margin: 0;">
+                        <button type="submit" class="btn btn-small btn-danger"
+                            style="padding: 6px 12px; font-size: 0.8rem; background: #ef4444; color: white; border: none; border-radius: var(--radius-sm); cursor: pointer; box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);">
+                            Delete
+                        </button>
+                    </form>
+                </div>
                 {% endif %}
             </div>
-            
-            <div class="content-details mt-3">
-                <h4 style="margin-bottom: 5px; font-weight: 600;">{{ item.title }}</h4>
-                <div class="tags" style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;">
-                    <span class="tag" style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: var(--radius-lg); font-size: 0.75rem; color: var(--text-secondary);">{{ item.category }}</span>
-                    <span class="tag" style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: var(--radius-lg); font-size: 0.75rem; color: var(--text-secondary);">{{ item.state }}</span>
-                    <span class="tag" style="background: var(--bg-color); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: var(--radius-lg); font-size: 0.75rem; color: var(--text-secondary);">{{ item.district }}</span>
-                </div>
+            {% if item.description %}
+            <div class="feed-desc mt-3 text-secondary" style="font-size: 0.95rem;">{{ item.description }}</div>
+            {% endif %}
+        </div>
+
+        <!-- Card Body: Media Preview -->
+        <div class="media-preview"
+            style="background: #fafafa; display: flex; align-items: center; justify-content: center; flex: 1;">
+            {% if item.media_type|lower == 'video' %}
+            <video controls style="width: 100%; max-height: 250px; background: #000;">
+                <source src="{{ url_for('static', filename=item.file_path) }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+            {% elif item.media_type|lower == 'audio' %}
+            <div style="padding: 30px 20px; width: 100%;">
+                <audio controls style="width: 100%;">
+                    <source src="{{ url_for('static', filename=item.file_path) }}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
             </div>
-            
+            {% elif item.media_type|lower == 'image' %}
+            <a href="{{ url_for('static', filename=item.file_path) }}" target="_blank"
+                style="width: 100%; display: block; text-decoration: none;">
+                <img src="{{ url_for('static', filename=item.file_path) }}" alt="{{ item.title }}"
+                    style="width: 100%; max-height: 250px; object-fit: contain; background: #000;">
+            </a>
+            {% elif item.media_type|lower == 'pdf' %}
+            <a href="{{ url_for('static', filename=item.file_path) }}" target="_blank"
+                style="display: block; width: 100%; text-decoration: none;">
+                <div class="pdf-icon text-center"
+                    style="padding: 40px 20px; width: 100%; cursor: pointer; transition: background-color 0.2s;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        style="width: 48px; height: 48px; color: #f43f5e; margin-bottom: 10px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p style="color: #0f172a; font-weight: 600; margin: 0;">View PDF Document</p>
+                </div>
+            </a>
+            {% elif item.media_type|lower == 'text' %}
+            <a href="{{ url_for('static', filename=item.file_path) }}" target="_blank"
+                style="display: block; width: 100%; text-decoration: none;">
+                <div class="text-preview text-center"
+                    style="padding: 40px 20px; width: 100%; cursor: pointer; transition: background-color 0.2s;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        style="width: 48px; height: 48px; color: #3b82f6; margin-bottom: 10px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <p style="color: #0f172a; font-weight: 600; margin: 0;">Read Text Document</p>
+                </div>
+            </a>
+            {% endif %}
         </div>
-        {% endfor %}
+
+        <!-- Card Footer: Tags -->
+        <div class="content-details"
+            style="padding: 16px 20px; border-top: 1px solid var(--border-color); background: #ffffff;">
+            <div class="tags" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <span class="tag">{{ item.category }}</span>
+                <span class="tag" style="text-transform: capitalize;">{{ item.media_type }}</span>
+                <span class="tag">{{ item.state }}</span>
+                <span class="tag">{{ item.district }}</span>
+            </div>
+        </div>
+    </article>
+{% endmacro %}
+
+<div class="profile-uploads-container">
+    {% if contents %}
+        {% if grouped_contents %}
+            {% for m_type, items in grouped_contents.items() %}
+                <div class="media-category-section mb-5">
+                    <h4 class="mb-4 text-left" style="text-transform: capitalize; border-bottom: 3px solid var(--accent-color); padding-bottom: 8px; display: inline-block; color: var(--text-primary); font-weight: 700;">{{ m_type }} Uploads</h4>
+                    <div class="content-feed grid-feed">
+                        {% for item in items %}
+                            {{ render_item(item) }}
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="content-feed grid-feed">
+                {% for item in contents %}
+                    {{ render_item(item) }}
+                {% endfor %}
+            </div>
+        {% endif %}
     {% else %}
-        <div class="card text-center p-4 shadow-none border-dashed" style="padding: 60px 20px; border: 1px dashed var(--border-color); background: none; box-shadow: none;">
-            <p class="text-secondary" style="font-size: 0.95rem;">No contents uploaded yet.</p>
+    <div class="content-feed grid-feed">
+        <div class="card text-center shadow-none border-dashed"
+            style="padding: 60px 20px; border: 1px dashed var(--border-color); background: none; box-shadow: none; grid-column: 1 / -1;">
+            <p class="text-secondary" style="font-size: 0.95rem;">No uploads yet.</p>
         </div>
+    </div>
     {% endif %}
 </div>
 {% endblock %}
@@ -103,16 +187,18 @@
         object-fit: contain;
         background: #000;
     }
+
     .full-width {
         width: 100%;
     }
+
     .tag {
-        background: var(--bg-color);
-        border: 1px solid var(--border-color);
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
         padding: 4px 10px;
         border-radius: var(--radius-lg);
         font-size: 0.8rem;
-        color: var(--text-secondary);
+        color: #475569;
     }
 </style>
 {% endblock %}

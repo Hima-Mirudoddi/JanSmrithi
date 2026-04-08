@@ -1,9 +1,5 @@
 import os
 import pymysql
-import pymysql.cursors
-import cloudinary
-import cloudinary.uploader
-from cloudinary.utils import cloudinary_url
 from flask import Flask, render_template, request, redirect, url_for, session, flash, abort
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -16,8 +12,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'supersecretkey')
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB limit
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', os.path.join(BASE_DIR, 'static/uploads'))
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'static/uploads')
 # Create upload directories safely (Vercel is a Read-Only file system)
 for media_type in ['videos', 'audio', 'images', 'text', 'pdfs']:
     try:
@@ -25,28 +20,27 @@ for media_type in ['videos', 'audio', 'images', 'text', 'pdfs']:
     except OSError:
         pass  # Ignore Read-Only filesystem errors on Vercel deployments
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Configure Cloudinary for Media Uploads
-cloudinary.config(
-  cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'),
-  api_key = os.getenv('CLOUDINARY_API_KEY'),
-  api_secret = os.getenv('CLOUDINARY_API_SECRET'),
-  secure = True
-)
-
 import ssl
 
 def get_db_connection():
     try:
-        connection = pymysql.connect(
-            host=os.getenv('DB_HOST'),
-            user=os.getenv('DB_USER'),
-            password=os.getenv('DB_PASSWORD'),
-            database=os.getenv('DB_NAME'),
+        host = os.getenv('DB_HOST', '127.0.0.1')
+        
+        # Cloud databases (like Aiven) strictly require SSL connections
+        ssl_config = None
+        if host not in ['localhost', '127.0.0.1']:
+            ssl_config = {'ssl': {}}
+
+        return pymysql.connect(
+            host=host,
+            user=os.getenv('DB_USER', 'root'),
+            password=os.getenv('DB_PASSWORD', ''),
+            database=os.getenv('DB_NAME', 'jansmrithi'),
             port=int(os.getenv('DB_PORT', 3306)),
+            ssl=ssl_config,
+            connect_timeout=10,
             cursorclass=pymysql.cursors.DictCursor
-        )
-        return connection, ""
+        ), ""
     except Exception as e:
         print(f"Database connection error: {e}")
         return None, str(e)
@@ -71,28 +65,28 @@ def home():
     if not conn:
         return f"Database not connected. Error: {err}", 500
         
-    cursor = conn.cursor()
-    query = """
-        SELECT c.*, u.username 
-        FROM content c 
-        JOIN users u ON c.user_id = u.user_id 
-        WHERE 1=1
-    """
-    params = []
-    
-    if category_query:
-        query += " AND c.category = %s"
-        params.append(category_query)
+    with conn.cursor() as cursor:
+        query = """
+            SELECT c.*, u.username 
+            FROM content c 
+            JOIN users u ON c.user_id = u.user_id 
+            WHERE 1=1
+        """
+        params = []
         
-    if region_query:
-        query += " AND (c.state LIKE %s OR c.district LIKE %s)"
-        region_term = f"%{region_query}%"
-        params.extend([region_term, region_term])
+        if category_query:
+            query += " AND c.category = ?"
+            params.append(category_query)
+            
+        if region_query:
+            query += " AND (c.state LIKE ? OR c.district LIKE ?)"
+            region_term = f"%{region_query}%"
+            params.extend([region_term, region_term])
+            
+        query += " ORDER BY c.upload_date DESC"
         
-    query += " ORDER BY c.upload_date DESC"
-    
-    cursor.execute(query, params)
-    content_items = cursor.fetchall()
+        cursor.execute(query, params)
+        content_items = cursor.fetchall()
     conn.close()
     
     categories = list(CATEGORY_ICONS.keys())
@@ -130,15 +124,15 @@ def register():
             return redirect(url_for('register'))
 
         try:
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO users (username, email, mobile_number, password) VALUES (%s, %s, %s, %s)",
-                (username, email, mobile_number, hashed_password)
-            )
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO users (username, email, mobile_number, password) VALUES (?, ?, ?, ?)",
+                    (username, email, mobile_number, hashed_password)
+                )
             conn.commit()
             flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
-        except pymysql.err.IntegrityError as e:
+        except pymysql.MySQLError as e:
             flash('Username or Email already exists.', 'error')
         finally:
             if conn:
@@ -157,13 +151,13 @@ def login():
             flash(f'Database error: {err}', 'error')
             return redirect(url_for('login'))
 
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM users WHERE username = %s OR email = %s",
-            (user_identifier, user_identifier)
-        )
-        user = cursor.fetchone()
-        
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM users WHERE username = ? OR email = ?",
+                (user_identifier, user_identifier)
+            )
+            user = cursor.fetchone()
+            
         conn.close()
         
         if user and check_password_hash(user['password'], password):
@@ -199,19 +193,19 @@ def forgot_password():
             return redirect(url_for('forgot_password'))
 
         try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE email = %s AND mobile_number = %s", (email, mobile_number))
-            user = cursor.fetchone()
-            
-            if user:
-                hashed_password = generate_password_hash(new_password)
-                cursor.execute("UPDATE users SET password = %s WHERE user_id = %s", (hashed_password, user['user_id']))
-                conn.commit()
-                flash('Your password has been successfully reset. Please log in.', 'success')
-                return redirect(url_for('login'))
-            else:
-                flash('No matching account found for the provided email and mobile number.', 'error')
-                return redirect(url_for('forgot_password'))
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM users WHERE email = ? AND mobile_number = ?", (email, mobile_number))
+                user = cursor.fetchone()
+                
+                if user:
+                    hashed_password = generate_password_hash(new_password)
+                    cursor.execute("UPDATE users SET password = ? WHERE user_id = ?", (hashed_password, user['user_id']))
+                    conn.commit()
+                    flash('Your password has been successfully reset. Please log in.', 'success')
+                    return redirect(url_for('login'))
+                else:
+                    flash('No matching account found for the provided email and mobile number.', 'error')
+                    return redirect(url_for('forgot_password'))
         finally:
             if conn:
                 conn.close()
@@ -279,16 +273,16 @@ def explore(category_name):
         flash(f'Database error: {err}', 'error')
         return redirect(url_for('categories'))
 
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT c.*, u.username
-        FROM content c
-        JOIN users u ON c.user_id = u.user_id
-        WHERE c.category = %s
-        ORDER BY c.upload_date DESC
-    """, (category_name,))
-    contents = cursor.fetchall()
-    
+    with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+        cursor.execute("""
+            SELECT c.*, u.username
+            FROM content c
+            JOIN users u ON c.user_id = u.user_id
+            WHERE c.category = ?
+            ORDER BY c.upload_date DESC
+        """, (category_name,))
+        contents = cursor.fetchall()
+        
     conn.close()
     
     desc = CATEGORY_DESCRIPTIONS.get(category_name, "Explore and document our diverse cultural heritage in this category.")
@@ -322,32 +316,20 @@ def upload(category, mtype):
             if mtype.lower() == 'text' and not file and upload_content:
                 # creating a text file
                 filename = secure_filename(title[:10]) + ".txt"
-                # Save temporarily
                 path = os.path.join(app.config['UPLOAD_FOLDER'], 'text', filename)
                 with open(path, 'w', encoding='utf-8') as f:
                     f.write(upload_content)
-                
-                # Upload text file to Cloudinary
-                upload_result = cloudinary.uploader.upload(
-                    path,
-                    resource_type="raw",
-                    folder="jansmrithi_text"
-                )
-                file_path = upload_result.get('secure_url')
-                
-                # Clean up local temporary file
-                try:
-                    os.remove(path)
-                except OSError:
-                    pass
+                file_path = f"uploads/text/{filename}"
             elif file and file.filename != '':
-                # Upload logic using Cloudinary
-                upload_result = cloudinary.uploader.upload(
-                    file,
-                    resource_type="auto",
-                    folder=f"jansmrithi_{mtype.lower()}"
-                )
-                file_path = upload_result.get('secure_url')
+                filename = secure_filename(file.filename)
+                folder_map = {
+                    'video': 'videos', 'audio': 'audio', 'image': 'images',
+                    'text': 'text', 'pdf': 'pdfs'
+                }
+                sub_folder = folder_map.get(mtype.lower(), 'text')
+                path = os.path.join(app.config['UPLOAD_FOLDER'], sub_folder, filename)
+                file.save(path)
+                file_path = f"uploads/{sub_folder}/{filename}"
         except OSError:
             flash('Error: You cannot upload files to Vercel (it has a Read-Only file system). Please switch to PythonAnywhere or Render to unlock uploads!', 'error')
             return render_template('upload.html', category=category, mtype=mtype)
@@ -361,13 +343,13 @@ def upload(category, mtype):
             flash(f'Database error: {err}', 'error')
             return redirect(url_for('home'))
 
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO content (user_id, title, description, category, media_type, file_path, state, district, language)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (session['user_id'], title, description, category, mtype, file_path, state, district, language))
-        # Increase user uploads count
-        cursor.execute("UPDATE users SET uploads_count = uploads_count + 1 WHERE user_id = %s", (session['user_id'],))
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO content (user_id, title, description, category, media_type, file_path, state, district, language)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (session['user_id'], title, description, category, mtype, file_path, state, district, language))
+            # Increase user uploads count
+            cursor.execute("UPDATE users SET uploads_count = uploads_count + 1 WHERE user_id = ?", (session['user_id'],))
         conn.commit()
         conn.close()
         
@@ -387,47 +369,47 @@ def profile(user_id=None):
     if not conn:
         return f"Database error: {err}", 500
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
-    user = cursor.fetchone()
-    
-    if not user:
-        abort(404)
-    
-    media_filter = request.args.get('media', '').strip()
-    query_sql = """
-        SELECT c.*, u.username 
-        FROM content c 
-        JOIN users u ON c.user_id = u.user_id 
-        WHERE c.user_id = %s 
-    """
-    params = [user_id]
-    
-    if media_filter:
-        query_sql += " AND lower(c.media_type) = %s "
-        params.append(media_filter.lower())
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = cursor.fetchone()
         
-    query_sql += " ORDER BY c.upload_date DESC"
-    
-    cursor.execute(query_sql, tuple(params))
-    contents = cursor.fetchall()
-    
-    grouped_contents = None
-    if not media_filter and contents:
-        grouped_contents = {}
-        for item in contents:
-            m_type = item['media_type'].capitalize()
-            if m_type not in grouped_contents:
-                grouped_contents[m_type] = []
-            grouped_contents[m_type].append(item)
-    
-    # Check if current user follows this profile user
-    is_following = False
-    if session['user_id'] != user_id:
-        cursor.execute("SELECT * FROM follow WHERE follower_user_id = %s AND following_user_id = %s", 
-                       (session['user_id'], user_id))
-        is_following = bool(cursor.fetchone())
+        if not user:
+            abort(404)
         
+        media_filter = request.args.get('media', '').strip()
+        query_sql = """
+            SELECT c.*, u.username 
+            FROM content c 
+            JOIN users u ON c.user_id = u.user_id 
+            WHERE c.user_id = ? 
+        """
+        params = [user_id]
+        
+        if media_filter:
+            query_sql += " AND lower(c.media_type) = ? "
+            params.append(media_filter.lower())
+            
+        query_sql += " ORDER BY c.upload_date DESC"
+        
+        cursor.execute(query_sql, tuple(params))
+        contents = cursor.fetchall()
+        
+        grouped_contents = None
+        if not media_filter and contents:
+            grouped_contents = {}
+            for item in contents:
+                m_type = item['media_type'].capitalize()
+                if m_type not in grouped_contents:
+                    grouped_contents[m_type] = []
+                grouped_contents[m_type].append(item)
+        
+        # Check if current user follows this profile user
+        is_following = False
+        if session['user_id'] != user_id:
+            cursor.execute("SELECT * FROM follow WHERE follower_user_id = ? AND following_user_id = ?", 
+                           (session['user_id'], user_id))
+            is_following = bool(cursor.fetchone())
+            
     conn.close()
     
     return render_template('profile.html', user=user, contents=contents, grouped_contents=grouped_contents, is_following=is_following)
@@ -442,24 +424,24 @@ def follow(user_id):
     if not conn:
         return f"Database error: {err}", 500
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM follow WHERE follower_user_id = %s AND following_user_id = %s",
-                   (session['user_id'], user_id))
-    already_following = cursor.fetchone()
-    
-    if already_following:
-        # Unfollow
-        cursor.execute("DELETE FROM follow WHERE follower_user_id = %s AND following_user_id = %s",
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT * FROM follow WHERE follower_user_id = ? AND following_user_id = ?",
                        (session['user_id'], user_id))
-        cursor.execute("UPDATE users SET following_count = following_count - 1 WHERE user_id = %s", (session['user_id'],))
-        cursor.execute("UPDATE users SET followers_count = followers_count - 1 WHERE user_id = %s", (user_id,))
-    else:
-        # Follow
-        cursor.execute("INSERT INTO follow (follower_user_id, following_user_id) VALUES (%s, %s)",
-                       (session['user_id'], user_id))
-        cursor.execute("UPDATE users SET following_count = following_count + 1 WHERE user_id = %s", (session['user_id'],))
-        cursor.execute("UPDATE users SET followers_count = followers_count + 1 WHERE user_id = %s", (user_id,))
+        already_following = cursor.fetchone()
         
+        if already_following:
+            # Unfollow
+            cursor.execute("DELETE FROM follow WHERE follower_user_id = ? AND following_user_id = ?",
+                           (session['user_id'], user_id))
+            cursor.execute("UPDATE users SET following_count = following_count - 1 WHERE user_id = ?", (session['user_id'],))
+            cursor.execute("UPDATE users SET followers_count = followers_count - 1 WHERE user_id = ?", (user_id,))
+        else:
+            # Follow
+            cursor.execute("INSERT INTO follow (follower_user_id, following_user_id) VALUES (?, ?)",
+                           (session['user_id'], user_id))
+            cursor.execute("UPDATE users SET following_count = following_count + 1 WHERE user_id = ?", (session['user_id'],))
+            cursor.execute("UPDATE users SET followers_count = followers_count + 1 WHERE user_id = ?", (user_id,))
+            
     conn.commit()
     conn.close()
     return redirect(url_for('profile', user_id=user_id))
@@ -471,38 +453,23 @@ def delete(content_id):
     if not conn:
         return f"Database error: {err}", 500
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM content WHERE content_id = %s", (content_id,))
-    content = cursor.fetchone()
-    
-    if content and content['user_id'] == session['user_id']:
-        # Safe delete from Cloudinary or local
-        try:
-            if 'cloudinary' in content['file_path']:
-                # Extract public ID from Cloudinary URL (simplified)
-                # Note: 'raw' resource types need their extension in public_id
-                file_url = content['file_path']
-                public_id = file_url.split('/upload/')[1].split('/', 1)[-1]
-                # Remove version if present e.g. v123123123/
-                if public_id.startswith('v') and '/' in public_id:
-                    v_part, real_id = public_id.split('/', 1)
-                    if v_part[1:].isdigit():
-                        public_id = real_id
-                        
-                r_type = "raw" if content['media_type'].lower() == 'text' else ("video" if content['media_type'].lower() in ['video', 'audio'] else "image")
-                cloudinary.uploader.destroy(public_id, resource_type=r_type)
-            else:
-                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], content['file_path'].replace('uploads/', '')))
-        except Exception as e:
-            print(f"Delete file warning: {e}")
-            pass
-        cursor.execute("DELETE FROM content WHERE content_id = %s", (content_id,))
-        cursor.execute("UPDATE users SET uploads_count = uploads_count - 1 WHERE user_id = %s", (session['user_id'],))
-        conn.commit()
-        flash("Content deleted.", "success")
-    else:
-        flash("You do not have permission to delete this.", "error")
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT * FROM content WHERE content_id = ?", (content_id,))
+        content = cursor.fetchone()
         
+        if content and content['user_id'] == session['user_id']:
+            # Safe delete
+            try:
+                os.remove(os.path.join(app.config['UPLOAD_FOLDER'], content['file_path'].replace('uploads/', '')))
+            except OSError:
+                pass
+            cursor.execute("DELETE FROM content WHERE content_id = ?", (content_id,))
+            cursor.execute("UPDATE users SET uploads_count = uploads_count - 1 WHERE user_id = ?", (session['user_id'],))
+            conn.commit()
+            flash("Content deleted.", "success")
+        else:
+            flash("You do not have permission to delete this.", "error")
+            
     conn.close()
     return redirect(url_for('profile'))
 

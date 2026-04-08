@@ -1,42 +1,46 @@
 {% extends "base.html" %}
 
 {% block main %}
-<div class="card text-center mb-4 p-4">
-    <h2>Select Media Type for {{ category }}</h2>
-    <p class="text-secondary mt-2">Choose the format of the content you want to upload</p>
+<div class="card text-center mb-4 p-4" style="border-top: 4px solid #111;">
+    <h2 style="font-weight: 700; font-size: 2rem;">{{ category }}</h2>
+    <div style="font-size: 3rem; margin: 15px auto; width: 80px; height: 80px; background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(186, 230, 253, 0.4);">
+        {{ icon }}
+    </div>
+    <p class="text-primary mt-2" style="font-size: 1.15rem; font-style: italic; color: #444;">"{{ description }}"</p>
+    <p class="text-secondary mt-3 pt-3" style="border-top: 1px solid var(--border-color); display: inline-block;">Choose the format of the content you want to upload</p>
 </div>
 
 <div class="media-type-grid">
     <a href="{{ url_for('upload', category=category, mtype='video') }}" class="media-card">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #ef4444;">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
         <span>Video</span>
     </a>
     
     <a href="{{ url_for('upload', category=category, mtype='audio') }}" class="media-card">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #f59e0b;">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c-1.105 0-2-.895-2-2s.895-2 2-2 2 .895 2 2-.895 2-2 2zm12-3c-1.105 0-2-.895-2-2s.895-2 2-2 2 .895 2 2-.895 2-2 2z" />
         </svg>
         <span>Audio</span>
     </a>
     
     <a href="{{ url_for('upload', category=category, mtype='image') }}" class="media-card">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #10b981;">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
         <span>Image</span>
     </a>
     
     <a href="{{ url_for('upload', category=category, mtype='text') }}" class="media-card">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #3b82f6;">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
         </svg>
         <span>Text</span>
     </a>
     
     <a href="{{ url_for('upload', category=category, mtype='pdf') }}" class="media-card">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color: #8b5cf6;">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
         </svg>
         <span>Files (PDF)</span>
@@ -48,9 +52,14 @@
 <style>
     .media-type-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        grid-template-columns: repeat(5, 1fr);
         gap: 15px;
         margin-top: 20px;
+    }
+    @media (max-width: 768px) {
+        .media-type-grid {
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        }
     }
     
     .media-card {

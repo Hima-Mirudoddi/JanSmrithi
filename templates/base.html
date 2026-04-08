@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JanSmrithi</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=4.1">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -26,8 +26,9 @@
         {% block main %}{% endblock %}
     </main>
 
-    {% block upload_btn %}{% endblock %}
+    {% block fab %}{% endblock %}
 
+    {% block footer %}
     <footer>
         <a href="{{ url_for('home') }}" class="nav-item {% if request.endpoint == 'home' %}active{% endif %}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -42,8 +43,9 @@
             Profile
         </a>
     </footer>
+    {% endblock %}
     
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}?v=2.0"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

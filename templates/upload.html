@@ -1,75 +1,92 @@
 {% extends "base.html" %}
 
 {% block main %}
-<div class="card" style="max-width: 600px; margin: 20px auto; padding: 30px;">
-    <h2 class="text-center mb-4" style="font-weight: 600;">{{ mtype|title }} Content</h2>
-    
-    <form method="POST" action="{{ url_for('upload', category=category, mtype=mtype) }}" enctype="multipart/form-data">
-        
-        <div class="form-group">
-            <label for="title">Title</label>
-            <input type="text" id="title" name="title" class="form-control" placeholder="Enter a descriptive title" required>
+<div class="card"
+    style="max-width: 600px; margin: 0 auto; padding: 25px; min-height: calc(100vh - var(--header-height) - var(--footer-height) - 45px); display: flex; flex-direction: column;">
+    <h2 class="text-center mb-4" style="font-weight: 700; color: var(--text-primary);">{{ mtype|title }} Content</h2>
+
+    <form method="POST" action="{{ url_for('upload', category=category, mtype=mtype) }}" enctype="multipart/form-data"
+        autocomplete="off" style="display: flex; flex-direction: column; flex-grow: 1;">
+
+        <!-- Row 1: Title -->
+        <div class="form-group" style="margin-bottom: 15px;">
+            <label for="title" style="margin-bottom: 6px; font-weight: 600;">Title</label>
+            <input type="text" id="title" name="title" class="form-control" style="padding: 12px 14px;"
+                placeholder="Enter a title" required>
         </div>
-        
-        <div class="form-group">
-            <label for="description">Description</label>
-            <textarea id="description" name="description" class="form-control" rows="3" placeholder="Add some details about this content..."></textarea>
-        </div>
-        
-        <div class="form-group">
-            <label for="language">Language</label>
-            <select id="language" name="language" class="form-control" required style="cursor: pointer;">
-                <option value="" disabled selected>Select Language</option>
-                <option value="Telugu">Telugu</option>
-                <option value="Hindi">Hindi</option>
-                <option value="English">English</option>
-            </select>
-        </div>
-        
-        <div class="form-row" style="display: flex; gap: 15px;">
-            <div class="form-group" style="flex: 1;">
-                <label for="state">State</label>
-                <select id="state" name="state" class="form-control" required onchange="populateDistricts()" style="cursor: pointer;">
+
+        <!-- Row 2: State and District -->
+        <div class="form-row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="state" style="margin-bottom: 6px; font-weight: 600;">State</label>
+                <select id="state" name="state" class="form-control" style="padding: 12px 14px; cursor: pointer;"
+                    required onchange="populateDistricts()">
                     <option value="" disabled selected>Select State</option>
-                    <!-- Populated via JS -->
                 </select>
             </div>
-            
-            <div class="form-group" style="flex: 1;">
-                <label for="district">District</label>
-                <select id="district" name="district" class="form-control" required disabled style="cursor: pointer;">
+
+            <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                <label for="district" style="margin-bottom: 6px; font-weight: 600;">District</label>
+                <select id="district" name="district" class="form-control" style="padding: 12px 14px; cursor: pointer;"
+                    required disabled>
                     <option value="" disabled selected>Select District</option>
-                    <!-- Populated via JS -->
                 </select>
             </div>
         </div>
-        
-        <div class="form-group upload-area mt-4" style="background: #fdfdfd; padding: 20px; border: 1px dashed #ccc; border-radius: var(--radius-md);">
-            <label for="file" style="margin-bottom: 12px;">Upload File</label>
-            
+
+        <!-- Row 3: Description -->
+        <div class="form-group" style="margin-bottom: 15px; display: flex; flex-direction: column; flex-grow: 1;">
+            <label for="description" style="margin-bottom: 6px; font-weight: 600;">Description</label>
+            <textarea id="description" name="description" class="form-control"
+                style="padding: 12px 14px; flex-grow: 1; resize: none;"
+                placeholder="Briefly describe the content"></textarea>
+        </div>
+
+        <!-- Row 4: Upload Area -->
+        <div class="form-group upload-area"
+            style="background: #f8fafc; padding: 15px 20px; border: 2px dashed #cbd5e1; border-radius: var(--radius-md); margin-bottom: 20px; transition: all 0.2s ease;">
+
+            <label for="file"
+                style="margin-bottom: 8px; display: block; font-weight: 600; color: var(--text-secondary);">Attach {{
+                mtype|title }} File</label>
+
             {% if mtype|lower == 'video' %}
-                <input type="file" id="file" name="file" class="form-control" accept="video/*" required style="border:none; padding-left:0; background:none;">
+            <input type="file" id="file" name="file" class="form-control" accept="video/*" required
+                style="border:none; padding:4px 0; background:none; color: var(--text-primary); cursor: pointer;">
             {% elif mtype|lower == 'audio' %}
-                <input type="file" id="file" name="file" class="form-control" accept="audio/*" required style="border:none; padding-left:0; background:none;">
+            <input type="file" id="file" name="file" class="form-control" accept="audio/*" required
+                style="border:none; padding:4px 0; background:none; color: var(--text-primary); cursor: pointer;">
             {% elif mtype|lower == 'image' %}
-                <input type="file" id="file" name="file" class="form-control" accept="image/*" required style="border:none; padding-left:0; background:none;">
+            <input type="file" id="file" name="file" class="form-control" accept="image/*" required
+                style="border:none; padding:4px 0; background:none; color: var(--text-primary); cursor: pointer;">
             {% elif mtype|lower == 'pdf' %}
-                <input type="file" id="file" name="file" class="form-control" accept=".pdf" required style="border:none; padding-left:0; background:none;">
+            <input type="file" id="file" name="file" class="form-control" accept=".pdf" required
+                style="border:none; padding:4px 0; background:none; color: var(--text-primary); cursor: pointer;">
             {% elif mtype|lower == 'text' %}
-                <ul class="nav nav-tabs mb-2" id="textUploadTabs" style="display: flex; list-style: none; gap: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
-                    <li><a href="#" id="tab-file" class="active text-primary" style="font-weight: 600;" onclick="toggleTextUpload('file')">Upload .txt</a></li>
-                    <li><a href="#" id="tab-text" class="text-secondary" onclick="toggleTextUpload('text')">Type Text</a></li>
-                </ul>
-                <div id="file-upload-section" class="mt-4">
-                    <input type="file" id="file" name="file" class="form-control" accept=".txt" style="border:none; padding-left:0; background:none;">
-                </div>
-                <div id="text-upload-section" style="display: none;" class="mt-4">
-                    <textarea id="upload_content" name="upload_content" class="form-control" rows="8" placeholder="Type your full content here..."></textarea>
-                </div>
+            <ul class="nav nav-tabs mb-2" id="textUploadTabs"
+                style="display: flex; list-style: none; gap: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px;">
+                <li><a href="#" id="tab-file" class="active text-primary"
+                        style="font-weight: 600; text-decoration: none;" onclick="toggleTextUpload('file')">Upload
+                        .txt</a></li>
+                <li><a href="#" id="tab-text" class="text-secondary" style="text-decoration: none;"
+                        onclick="toggleTextUpload('text')">Type Text Instead</a>
+                </li>
+            </ul>
+            <div id="file-upload-section">
+                <input type="file" id="file" name="file" class="form-control" accept=".txt"
+                    style="border:none; padding:4px 0; background:none; color: var(--text-primary); cursor: pointer;">
+            </div>
+            <div id="text-upload-section" style="display: none;">
+                <textarea id="upload_content" name="upload_content" class="form-control"
+                    style="padding: 10px 12px; resize: vertical;" rows="3"
+                    placeholder="Type your textual content here..."></textarea>
+            </div>
             {% endif %}
         </div>
-        
-        <button type="submit" class="btn mt-4">Upload Content</button>
+
+        <button type="submit" class="btn"
+            style="padding: 14px; font-weight: 600; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(37, 99, 235, 0.2);">Upload
+            Content</button>
     </form>
 </div>
 {% endblock %}
@@ -83,7 +100,7 @@
         const fileInput = document.getElementById('file');
         const tabFile = document.getElementById('tab-file');
         const tabText = document.getElementById('tab-text');
-        
+
         if (type === 'file') {
             fileSection.style.display = 'block';
             textSection.style.display = 'none';
